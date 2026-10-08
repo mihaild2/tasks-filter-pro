@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+<head>
+  <meta charset="utf-8" />
+  <title>Tasks Filter Pro</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M3 4h18l-7 8.5V19l-4 2v-8.5z"/></svg>
+      <h1>Tasks Filter <span>Pro</span></h1>
+    </div>
+    <label class="theme">
+      <span class="sr">Theme</span>
+      <select id="theme">
+        <option value="auto">Auto</option>
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+        <option value="ocean">Ocean</option>
+        <option value="rose">Rose</option>
+      </select>
+    </label>
+  </header>
+
+  <div id="status" class="status"><i></i><span>Loading…</span></div>
+
+  <section class="presets">
+    <div class="field-head">
+      <span>Saved filters</span>
+      <button id="saveToggle" class="link">+ Save current</button>
+    </div>
+    <div id="saveForm" class="save-form" hidden>
+      <input id="saveName" type="text" maxlength="60" placeholder="Name this filter…" autocomplete="off" spellcheck="false" />
+      <button id="saveOk" class="btn primary">Save</button>
+      <button id="saveCancel" class="btn">Cancel</button>
+    </div>
+    <div id="presetList" class="preset-list"></div>
+    <p id="presetEmpty" class="empty-note">No saved filters yet.</p>
+  </section>
+
+  <main id="main">
+    <div id="fields"></div>
+
+    <section class="field">
+      <div class="field-head"><span>Created product</span></div>
+      <div class="seg" id="created" role="group" aria-label="Created product">
+        <button data-val="off" class="on">Off</button>
+        <button data-val="12h">12h</button>
+        <button data-val="24h">24h</button>
+        <button data-val="3d">3d</button>
+        <button data-val="7d">7d</button>
+      </div>
+    </section>
+
+    <section class="preview">
+      <div class="field-head">
+        <span>Query</span>
+        <span class="actions">
+          <button id="copy" class="link">Copy</button>
+          <button id="clear" class="link danger">Clear all</button>
+        </span>
+      </div>
+      <code id="query" class="empty">No filters</code>
+    </section>
+  </main>
+
+  <p class="hint">Click a chip to exclude it (red). Click again to include. × removes.</p>
+
+  <!-- single shared suggestion popover: overlays the UI, never changes layout -->
+  <ul id="dropdown" class="dropdown" hidden></ul>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Tasks Filter Pro",
+  "version": "1.1.0",
+  "description": "Build Browswave task queries from category, country and company chips (include / exclude).",
+  "permissions": ["storage"],
+  "host_permissions": ["https://app.browswave.com/*"],
+  "action": {
+    "default_title": "Tasks Filter Pro",
+    "default_popup": "popup.html",
+    "default_icon": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" }
+  },
+  "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" },
+  "content_scripts": [
+    {
+      "matches": ["https://app.browswave.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
