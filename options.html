@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tasks Filter Pro – Settings</title>
+  <link rel="stylesheet" href="theme.css" />
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <header>
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M3 4h18l-7 8.5V19l-4 2v-8.5z"/></svg>
+    <h1>Tasks Filter <span>Pro</span> · Settings</h1>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Brand lists</h2>
+      <p class="note">Each category has its own brand list; “All categories” is offered for every category. In the popup, the Brand suggestions are the shared list plus the lists of the selected categories.</p>
+      <div class="split">
+        <nav id="lists" class="lists" aria-label="Brand lists"></nav>
+        <div class="editor">
+          <div class="ed-head"><h3 id="listTitle"></h3><span id="listCount" class="muted"></span></div>
+          <div class="row">
+            <textarea id="add" rows="2" placeholder="Add brand(s) – Enter to add (Shift+Enter = new line), or paste a list (comma / new line separated)" autocomplete="off" spellcheck="false"></textarea>
+            <button id="addBtn" class="btn primary">Add</button>
+          </div>
+          <div class="row">
+            <input id="filter" type="text" placeholder="Filter this list…" autocomplete="off" spellcheck="false" />
+            <button id="clearList" class="btn danger">Remove all</button>
+          </div>
+          <div id="chips" class="chips"></div>
+          <p id="empty" class="note">No brands in this list yet.</p>
+        </div>
+      </div>
+      <p id="catNote" class="note" hidden>Category names appear here after the popup has connected to the Browswave tasks page once.</p>
+    </section>
+
+    <section class="card">
+      <h2>Import / export</h2>
+      <p class="note">Export writes every list to a <code>.json</code> file. Import merges a file into the current lists (nothing is removed). Accepted: the exported format, <code>{ "&lt;category id or name&gt;": ["Acer", …] }</code>, a plain JSON array (shared list), or a text file with one brand per line (goes into the selected list).</p>
+      <div class="row wrap">
+        <button id="export" class="btn">Export…</button>
+        <button id="import" class="btn">Import…</button>
+        <button id="defaults" class="btn">Load bundled defaults</button>
+        <input id="file" type="file" accept=".json,.txt,.csv,application/json,text/plain" hidden />
+      </div>
+      <p id="ioNote" class="note status-line" aria-live="polite"></p>
+    </section>
+
+    <section class="card">
+      <h2>Collect from page</h2>
+      <p class="note">Reads the <code>data.subject.brand</code> column of the results table on an open Browswave tab and adds the brands to the list selected above.</p>
+      <div class="row wrap">
+        <button id="scan" class="btn">Scan page into this list</button>
+        <span id="scanNote" class="note status-line" aria-live="polite"></span>
+      </div>
+    </section>
+  </main>
+  <script src="brands.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

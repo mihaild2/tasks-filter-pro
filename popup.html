@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <title>Tasks Filter Pro</title>
+  <link rel="stylesheet" href="theme.css" />
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
@@ -11,16 +12,21 @@
       <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M3 4h18l-7 8.5V19l-4 2v-8.5z"/></svg>
       <h1>Tasks Filter <span>Pro</span></h1>
     </div>
-    <label class="theme">
-      <span class="sr">Theme</span>
-      <select id="theme">
-        <option value="auto">Auto</option>
-        <option value="light">Light</option>
-        <option value="dark">Dark</option>
-        <option value="ocean">Ocean</option>
-        <option value="rose">Rose</option>
-      </select>
-    </label>
+    <div class="head-right">
+      <label class="theme">
+        <span class="sr">Theme</span>
+        <select id="theme">
+          <option value="auto">Auto</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+          <option value="ocean">Ocean</option>
+          <option value="rose">Rose</option>
+        </select>
+      </label>
+      <button id="gear" class="ib gear" title="Settings (opens in a tab)" aria-pressed="false">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.5 7.5 0 000-2l2.1-1.6a.5.5 0 00.1-.6l-2-3.5a.5.5 0 00-.6-.2l-2.5 1a7.3 7.3 0 00-1.7-1l-.4-2.6a.5.5 0 00-.5-.4h-4a.5.5 0 00-.5.4l-.4 2.6a7.3 7.3 0 00-1.7 1l-2.5-1a.5.5 0 00-.6.2l-2 3.5a.5.5 0 00.1.6L4.6 11a7.5 7.5 0 000 2l-2.1 1.6a.5.5 0 00-.1.6l2 3.5c.1.2.4.3.6.2l2.5-1c.5.4 1.1.7 1.7 1l.4 2.6c0 .2.2.4.5.4h4c.3 0 .5-.2.5-.4l.4-2.6c.6-.3 1.2-.6 1.7-1l2.5 1c.2.1.5 0 .6-.2l2-3.5a.5.5 0 00-.1-.6L19.4 13zM12 15.5a3.5 3.5 0 110-7 3.5 3.5 0 010 7z"/></svg>
+      </button>
+    </div>
   </header>
 
   <div id="status" class="status"><i></i><span>Loading…</span></div>
@@ -69,6 +75,7 @@
 
   <!-- single shared suggestion popover: overlays the UI, never changes layout -->
   <ul id="dropdown" class="dropdown" hidden></ul>
+  <script src="brands.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

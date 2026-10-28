@@ -1,16 +1,18 @@
+// sepInc / sepExc: text placed between values inside the parentheses
 const FIELDS = [
-  { key: 'category', title: 'Category' },
-  { key: 'country', title: 'Country' },
-  { key: 'company', title: 'Company' }
+  { key: 'category', title: 'Category', path: 'labels.category', sepInc: ' OR ', sepExc: ' AND ' },
+  { key: 'brand', title: 'Brand', path: 'data.subject.brand', sepInc: '|', sepExc: '|' },
+  { key: 'country', title: 'Country', path: 'labels.country', sepInc: ' OR ', sepExc: ' AND ' }, // AND matches your example; use ' OR ' to exclude "any of" the values
+  { key: 'company', title: 'Company', path: 'labels.company', sepInc: ' OR ', sepExc: ' AND ' }
 ];
-const INCLUDE_JOINER = 'OR';
-const EXCLUDE_JOINER = 'AND'; // matches your example; switch to 'OR' to exclude "any of" the values
 const STORE_KEY = 'bw_state';
 const PRESETS_KEY = 'bw_presets';
 
-const emptySel = () => ({ category: [], country: [], company: [] });
+const emptySel = () => Object.fromEntries(FIELDS.map((f) => [f.key, []]));
+const normSel = (sel) => ({ ...emptySel(), ...(sel || {}) });
 let state = { sel: emptySel(), created: 'off', query: '' };
 let options = { category: [], country: [], company: [] };
+let brands = { [ALL]: [] }; // { categoryId | '*': [brand names] }
 let presets = [];
 let tabId = null;
 let connected = false;
@@ -27,19 +29,21 @@ const ICON = {
 const needsQuotes = (v) => /[\s"()\[\]{}:\\!^~*?\/&|]|^[-+]/.test(v);
 const q = (v) => (needsQuotes(v) ? '"' + v.replace(/(["\\])/g, '\\$1') + '"' : v);
 
-function group(field, items, joiner, negate) {
+function group(path, items, sep, negate) {
   if (!items.length) return null;
   const vals = items.map((i) => q(i.value));
-  const body = vals.length === 1 ? vals[0] : '(' + vals.join(' ' + joiner + ' ') + ')';
-  return (negate ? '!' : '') + 'labels.' + field + ':' + body;
+  const body = vals.length === 1 ? vals[0] : '(' + vals.join(sep) + ')';
+  return (negate ? '!' : '') + path + ':' + body;
 }
 
 function buildQuery(s) {
   const parts = [];
-  for (const { key } of FIELDS) {
-    const inc = s.sel[key].filter((i) => !i.exclude);
-    const exc = s.sel[key].filter((i) => i.exclude);
-    parts.push(group(key, inc, INCLUDE_JOINER, false), group(key, exc, EXCLUDE_JOINER, true));
+  for (const { key, path, sepInc, sepExc } of FIELDS) {
+    const sel = (s.sel && s.sel[key]) || [];
+    parts.push(
+      group(path, sel.filter((i) => !i.exclude), sepInc, false),
+      group(path, sel.filter((i) => i.exclude), sepExc, true)
+    );
   }
   if (s.created !== 'off') parts.push('data.subject.created_at:>now-' + s.created);
   return parts.filter(Boolean).join(' AND ');
@@ -68,6 +72,49 @@ async function applyToPage() {
 }
 
 const savePresets = () => chrome.storage.local.set({ [PRESETS_KEY]: presets });
+const saveBrands = () => chrome.storage.local.set({ [BRANDS_KEY]: brands });
+
+// ---------- brands ----------
+
+// Brand suggestions: the shared list + the lists of the selected (included) categories;
+// with no category selected, every list is offered.
+function brandOptions() {
+  const cats = state.sel.category.filter((i) => !i.exclude).map((i) => i.value);
+  const lists = cats.length ? [brands[ALL], ...cats.map((c) => brands[c])] : Object.values(brands);
+  const seen = new Map();
+  for (const name of lists.flat()) if (name && !seen.has(name.toLowerCase())) seen.set(name.toLowerCase(), name);
+  return [...seen.values()].sort(sortCI).map((n) => ({ value: n, label: n }));
+}
+const optionsFor = (key) => (key === 'brand' ? brandOptions() : options[key]);
+
+// returns how many names were actually new
+function addBrands(listKey, names) {
+  const added = addNames(brands, listKey, names);
+  if (added) { saveBrands(); updateCount('brand'); if (ddKey === 'brand') renderDropdown(); }
+  return added;
+}
+
+// Read the brand column of the results table on the page and add what's found to a list:
+// the single selected category when the page is showing our query, otherwise the shared list.
+let scanTimer = null;
+function scheduleScan(ms) {
+  clearTimeout(scanTimer);
+  scanTimer = setTimeout(() => scanPage(false), ms);
+}
+
+async function scanPage(manual) {
+  if (tabId == null || !connected) return null;
+  try {
+    const r = await chrome.tabs.sendMessage(tabId, { type: 'scanBrands' });
+    if (!r?.ok) return manual ? { found: 0, added: 0, noColumn: true } : null;
+    const cats = state.sel.category.filter((i) => !i.exclude);
+    const key = cats.length === 1 && r.query === state.query ? cats[0].value : ALL;
+    const added = addBrands(key, r.brands);
+    return { found: r.brands.length, added, key };
+  } catch {
+    return null;
+  }
+}
 const clone = (o) => JSON.parse(JSON.stringify(o));
 
 // ---------- suggestion popover ----------
@@ -106,7 +153,8 @@ function renderDropdown() {
   const key = ddKey;
   const term = ui[key].input.value.trim().toLowerCase();
   const taken = new Set(state.sel[key].map((i) => i.value));
-  ddShown = options[key]
+  const all = optionsFor(key);
+  ddShown = all
     .filter((o) => !taken.has(o.value) && (!term || o.label.toLowerCase().includes(term)))
     .slice(0, 100);
   ddActive = Math.min(ddActive, Math.max(0, ddShown.length - 1));
@@ -115,7 +163,7 @@ function renderDropdown() {
   if (!ddShown.length) {
     const li = document.createElement('li');
     li.className = 'none';
-    li.textContent = options[key].length ? 'No matches' : 'No options loaded';
+    li.textContent = all.length ? 'No matches' : 'No options loaded';
     dd.appendChild(li);
   } else {
     ddShown.forEach((o, i) => {
@@ -150,15 +198,16 @@ function buildFields() {
     const sec = document.createElement('section');
     sec.className = 'field';
     sec.innerHTML = `
-      <div class="field-head"><span>${f.title}</span><span class="count"></span></div>
+      <div class="field-head"><span>${f.title}</span><span class="head-actions"><span class="count"></span>${f.key === 'brand' ? '<button class="link addall" type="button">Add all</button>' : ''}</span></div>
       <input type="text" placeholder="Search ${f.title.toLowerCase()}…" autocomplete="off" spellcheck="false" />
       <div class="chips"></div>`;
     document.getElementById('fields').appendChild(sec);
     const input = sec.querySelector('input');
-    ui[f.key] = { input, chips: sec.querySelector('.chips'), count: sec.querySelector('.count') };
+    ui[f.key] = { input, chips: sec.querySelector('.chips'), count: sec.querySelector('.count'), addAll: sec.querySelector('.addall') };
+    if (ui[f.key].addAll) ui[f.key].addAll.addEventListener('click', addAllBrands);
 
     input.addEventListener('focus', () => { ddActive = 0; openDropdown(f.key); });
-    input.addEventListener('input', () => { ddActive = 0; openDropdown(f.key); });
+    input.addEventListener('input', () => { ddActive = 0; openDropdown(f.key); if (f.key === 'brand') updateAddAll(); });
     input.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== input && ddKey === f.key) closeDropdown(); }, 120));
     input.addEventListener('keydown', (e) => {
       if (e.key === 'ArrowDown') { ddActive = Math.min(ddActive + 1, ddShown.length - 1); highlight(true); e.preventDefault(); }
@@ -204,9 +253,41 @@ function renderChips(key) {
     chip.append(lbl, x);
     u.chips.appendChild(chip);
   });
-  const n = state.sel[key].length;
-  u.count.textContent = (options[key].length ? options[key].length + ' options' : '') + (n ? ` · ${n} selected` : '');
+  updateCount(key);
+  if (key === 'category') updateCount('brand'); // brand suggestions depend on the selected categories
   positionDropdown();
+}
+
+// brands that "Add all" would add: every suggestion matching what's typed in the Brand box, not already selected
+function matchingBrands() {
+  const term = ui.brand.input.value.trim().toLowerCase();
+  const taken = new Set(state.sel.brand.map((i) => i.value));
+  return brandOptions().filter((o) => !taken.has(o.value) && (!term || o.label.toLowerCase().includes(term)));
+}
+
+function updateAddAll() {
+  const n = matchingBrands().length;
+  const b = ui.brand.addAll;
+  b.textContent = n ? `Add all (${n})` : 'Add all';
+  b.disabled = !n;
+}
+
+function addAllBrands() {
+  const list = matchingBrands();
+  if (!list.length) return;
+  list.forEach((o) => state.sel.brand.push({ value: o.value, label: o.label, exclude: false }));
+  ui.brand.input.value = '';
+  ddActive = 0;
+  renderChips('brand');
+  if (ddKey === 'brand') renderDropdown();
+  save();
+}
+
+function updateCount(key) {
+  const n = state.sel[key].length;
+  const total = optionsFor(key).length;
+  ui[key].count.textContent = (total ? total + ' options' : '') + (n ? (total ? ' · ' : '') + n + ' selected' : '');
+  if (key === 'brand') updateAddAll();
 }
 
 function renderAll() {
@@ -228,7 +309,7 @@ let dragId = null;
 const isActive = (p) => !!state.query && buildQuery(p) === state.query;
 
 function applyPreset(p) {
-  state.sel = clone(p.sel);
+  state.sel = normSel(clone(p.sel));
   state.created = p.created;
   renderAll();
   save();
@@ -378,7 +459,7 @@ function setStatus(cls, text) {
 async function loadOptions() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   let onSite = false;
-  try { onSite = new URL(tab.url).hostname === 'app.browswave.com'; } catch {}
+  try { onSite = new URL(tab.url).hostname === 'app.browswave.com'; } catch { }
   if (!onSite) {
     setStatus('warn', 'Open app.browswave.com/i/tasks to load values and apply queries.');
     return;
@@ -390,6 +471,8 @@ async function loadOptions() {
     const failed = Object.keys(res.errors || {});
     for (const f of FIELDS) if (res.data[f.key]) options[f.key] = res.data[f.key];
     chrome.storage.local.set({ bw_options: options });
+    FIELDS.forEach((f) => renderChips(f.key));
+    if (resolvePending(brands, options.category)) saveBrands();
     FIELDS.forEach((f) => renderChips(f.key));
     setStatus(failed.length ? 'warn' : 'ok',
       failed.length ? 'Some lists failed to load: ' + failed.join(', ') : 'Connected · values up to date');
@@ -410,12 +493,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   ui.saveToggle = document.getElementById('saveToggle');
   ui.saveForm = document.getElementById('saveForm');
   ui.saveName = document.getElementById('saveName');
+  ui.gear = document.getElementById('gear');
   buildFields();
 
-  const stored = await chrome.storage.local.get([STORE_KEY, 'bw_options', 'bw_theme', PRESETS_KEY]);
+  const stored = await chrome.storage.local.get([STORE_KEY, 'bw_options', 'bw_theme', PRESETS_KEY, BRANDS_KEY, SEEDED_KEY]);
+  if (!stored[SEEDED_KEY]) { // first run of this version: load the bundled brands.json once
+    try { await seedBundled(); stored[BRANDS_KEY] = (await chrome.storage.local.get(BRANDS_KEY))[BRANDS_KEY]; } catch { }
+  }
   if (stored[STORE_KEY]) state = { ...state, ...stored[STORE_KEY] };
+  state.sel = normSel(state.sel);
   if (stored.bw_options) options = { ...options, ...stored.bw_options };
   if (Array.isArray(stored[PRESETS_KEY])) presets = stored[PRESETS_KEY];
+  if (stored[BRANDS_KEY] && typeof stored[BRANDS_KEY] === 'object') brands = { [ALL]: [], ...stored[BRANDS_KEY] };
+  if (resolvePending(brands, options.category)) saveBrands();
 
   const theme = stored.bw_theme || 'auto';
   document.documentElement.dataset.theme = theme;
@@ -456,5 +546,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     else if (e.key === 'Escape') openSaveForm(false);
   });
 
+  ui.gear.addEventListener('click', () => { chrome.runtime.openOptionsPage(); window.close(); });
   loadOptions();
 });

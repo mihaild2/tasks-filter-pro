@@ -19,26 +19,72 @@
   const nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
 
   function setInputValue(input, value) {
-    if (input.value === value) return;
+    if (input.value === value) return false;
     nativeSetter.call(input, value); // bypass React's value tracker
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
   }
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  // ---- close the suggestion list (ul[role=listbox]) the page opens when the input changes ----
+  // Programmatic input events make the page's combobox open its popup, but it only closes on blur
+  // (which never happens because the user never touched the field). So we simulate that blur.
+  const suggestionsOpen = (input) => {
+    if (input.getAttribute('aria-expanded') === 'true') return true;
+    const id = input.getAttribute('aria-controls');
+    return !!(id && document.getElementById(id));
+  };
+
+  const blurInput = (input) => {
+    if (document.activeElement === input) input.blur();
+    // React 16 listens to "blur" (captured), React 17+ to "focusout" – send both
+    input.dispatchEvent(new FocusEvent('blur', { bubbles: false, relatedTarget: null }));
+    input.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: null }));
+  };
+
+  async function dismissSuggestions(input) {
+    for (let i = 0; i < 4; i++) {
+      await sleep(i === 0 ? 0 : 150);
+      if (document.hasFocus() && document.activeElement === input) return; // the user is typing in the page itself
+      if (i > 0 && !suggestionsOpen(input)) return;
+      blurInput(input);
+      if (i >= 2) {
+        // last resort: Escape closes an open combobox popup (it does not clear the value while it is open)
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true, cancelable: true }));
+      }
+    }
+  }
 
   async function applyQuery(query) {
     for (let i = 0; i < 6; i++) {
       if (onTasksPage()) {
         const input = findInput();
         if (input) {
-          setInputValue(input, query);
+          if (setInputValue(input, query)) dismissSuggestions(input); // fire and forget
           return { ok: true };
         }
       }
       await sleep(250);
     }
     return { ok: false };
+  }
+
+  // ---- brands currently visible in the results table ----
+  function scanBrands() {
+    const th = [...document.querySelectorAll('table thead th')].find((x) => x.id === 'data.subject.brand');
+    if (!th) return { ok: false, reason: 'no-column' };
+    const idx = th.cellIndex;
+    const seen = new Set();
+    const brands = [];
+    (th.closest('table') || document).querySelectorAll('tbody tr').forEach((tr) => {
+      const text = (tr.cells[idx]?.innerText || '').replace(/\s+/g, ' ').trim();
+      if (!text || /^[-–—]+$/.test(text)) return;
+      const k = text.toLowerCase();
+      if (!seen.has(k)) { seen.add(k); brands.push(text); }
+    });
+    return { ok: true, brands, query: findInput()?.value ?? '' };
   }
 
   // ---- option loading (same-origin, so session cookies are sent) ----
@@ -95,6 +141,9 @@
     if (msg?.type === 'apply') {
       applyQuery(String(msg.query ?? '')).then(sendResponse);
       return true;
+    }
+    if (msg?.type === 'scanBrands') {
+      sendResponse(scanBrands());
     }
   });
 })();
